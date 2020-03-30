@@ -163,12 +163,11 @@ class simple_binary_addition_rnn:
             X = np.array([[a[location], b[location]]])
 
             # Actual value for (a+b) = c, c is an array of 8 bits, so take transpose to compare bit by bit with X value.        
-            target = np.array([[c[location]]]).T            
+            #target = np.array([[c[location]]]).T            
             
             # ----------- forward ---------------
             # input_layer forward
-            input_layer_output = self.input_layer.forward(X, self.W_input)
-            
+            input_layer_output = self.input_layer.forward(X, self.W_input)            
             
             # hidden_layer forward
             hidden_layer_output = self.hidden_layer.forward(input_layer_output, self.W_hidden)
