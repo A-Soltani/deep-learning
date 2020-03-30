@@ -172,17 +172,13 @@ class simple_binary_addition_rnn:
             
             # hidden_layer forward
             hidden_layer_output = self.hidden_layer.forward(input_layer_output, self.W_hidden)
-            #net_1 = np.dot(X,W_in) + np.dot(hidden_layer_values[-1],W_h) 
             
             # self.output_layer.forward
             # predicated_value is a "guess" for each input matrix. 
             # We can now compare how well it did by subtracting the true answer (y) from the guess (predicated_value). 
-            # output_error is just a vector of positive and negative numbers reflecting how much the network missed.
             predicated_value = self.output_layer.forward(hidden_layer_output, self.W_output)            
         
             # Save the hidden layer to be used later            
-            #hidden_layer_values.append(copy.deepcopy(layer_1_output))             
-            # ToDo
             self.hidden_layer.save_previous_hidden_layer_value(hidden_layer_output)
 
             # Round off the values to nearest "0" or "1" and save it to a list
