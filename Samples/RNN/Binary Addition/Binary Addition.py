@@ -83,7 +83,7 @@ class hidden_layer(network_layer):
         self.hidden_layer_values  = list()
         
         # Initially, there is no previous hidden state. So append "0" for that
-        self.hidden_layer_values.append(np.zeros(neuron_count))
+        self.hidden_layer_values.append(np.zeros((1,neuron_count)))
     
     def forward(self, input_layer_output, W_hidden):
         prev_hidden = self.hidden_layer_values[-1]      
@@ -133,7 +133,10 @@ class simple_binary_addition_rnn:
         
         self.binary_dim = binary_dim
         input_dimension = 2
-        output_dimension = 1    
+        output_dimension = 1
+        
+        # temp array
+        self.predicated_values = np.zeros(self.binary_dim)
         
         # layers
         self.input_layer = input_layer(input_dimension)
@@ -181,9 +184,52 @@ class simple_binary_addition_rnn:
             self.hidden_layer.save_previous_hidden_layer_value(hidden_layer_output)
 
             # Round off the values to nearest "0" or "1" and save it to a list
-            d[location] = np.round(predicated_value[0][0])   
+            d[location] = np.round(predicated_value[0][0]) 
             
-        return d
+            self.predicated_values[location] = predicated_value
+            
+        return d, self.predicated_values
+    
+    def back_propagate(self, a, b, c, predicated_values):
+        
+        for position in range(self.binary_dim):            
+            
+            X = np.array([[a[position], b[position]]])
+            
+            y = np.array([[c[position]]]).T
+            
+            W_output = self.W_output
+            W_hidden = self.W_hidden
+            W_input  = self.W_input 
+            
+            # update W_output            
+            A_hidden = self.hidden_layer.hidden_layer_values[self.binary_dim - position-1]
+            A_hidden_transpose = np.array(A_hidden).T
+            y_hat = predicated_values[position]
+            
+            prev_position = position + 1
+            prev_hidden = self.hidden_layer.hidden_layer_values[prev_position]
+            
+            tmp_c1 = (y-y_hat)
+            tmp_c2 = np.dot(tmp_c1, y_hat)
+            tmp_c3 = np.dot(tmp_c2, (1-y_hat))
+            
+            common_all = self.learning_rate*tmp_c3
+            
+            W_output_update = np.dot(common_all, A_hidden)
+            W_output_update = np.array(W_output_update).T
+            
+            temp1 = np.array(1-A_hidden).T            
+            temp2 = np.dot(A_hidden, temp1)
+            temp3 = np.dot(self.W_output, temp2)
+            
+            W_hidden_update = np.dot(temp3, prev_hidden)
+                        
+            W_input_update = np.dot(temp3, X).T       
+            
+            self.W_output += W_output_update
+            self.W_hidden += W_hidden_update
+            self.W_input += W_input_update
     
     
     def train(self, epochs_count):
@@ -204,12 +250,12 @@ class simple_binary_addition_rnn:
             # desired predictions => d
             d = np.zeros_like(c)  
             
-            d = self.feed_forward(a, b ,c)
+            d, predicated_values = self.feed_forward(a, b ,c)
             
-            #back_propagating(a, b)
+            self.back_propagate(a, b, c, predicated_values)
     
             # Print out the Progress of the RNN
-            if (epoch % 10 == 0):
+            if (epoch % 1000 == 0):
                 utility.print_result(overallError, a_int, b_int, c, d)
                 
     
@@ -218,7 +264,7 @@ def main():
     hidden_dimension = 16
     learning_rate = 0.1
     rnn = simple_binary_addition_rnn(binary_dim, hidden_dimension, learning_rate)
-    rnn.train(1000)
+    rnn.train(10000)
     
 if __name__ == "__main__":
     main()
