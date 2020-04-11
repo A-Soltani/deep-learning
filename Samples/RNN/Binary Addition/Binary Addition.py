@@ -277,9 +277,7 @@ class simple_binary_addition_rnn:
             
             t3 = self.hidden_layer.backward(self.binary_dim-1, self.W_hidden)
             
-            
             #temp2 = sigmoid.backward(A_hidden)
-            
             #temp3 = np.dot(self.W_output, temp2)
             
             W_hidden_update = t3
