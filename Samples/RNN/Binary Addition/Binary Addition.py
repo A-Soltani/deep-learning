@@ -91,16 +91,16 @@ class hidden_layer(network_layer):
         sigmoid = sigmoid_activation()
         return sigmoid.forward(net_hidden)
     
-    def backward(self, position, W_hidden):
-        if position == 0:
+    def backward(self, hidden_value_index, W_hidden, binary_dim):
+        if hidden_value_index == -binary_dim:
             s_0 = self.hidden_layer_values[0]
             return s_0
         
-        s_t = self.hidden_layer_values[position]
+        s_t = self.hidden_layer_values[hidden_value_index]
         t1 = s_t*(1-s_t)
-        s_t_1 = self.hidden_layer_values[position-1]
+        s_t_1 = self.hidden_layer_values[hidden_value_index-1]
         
-        backward_prev = self.backward(position-1, W_hidden)
+        backward_prev = self.backward(hidden_value_index-1, W_hidden, binary_dim)
         t2 = backward_prev * W_hidden
         t3 = s_t_1 + t2
         return_value =  t1 * t3
@@ -207,9 +207,7 @@ class simple_binary_addition_rnn:
             # Save the hidden layer to be used later            
             self.hidden_layer.save_previous_hidden_layer_value(hidden_layer_output)            
 
-            # Round off the values to nearest "0" or "1" and save it to a list
-            debug1 = predicated_value[0][0]
-            debug2 = position
+            # Round off the values to nearest "0" or "1" and save it to a list            
             d[location] = np.round(predicated_value[0][0]) 
             
             self.predicated_values[location] = predicated_value
@@ -223,7 +221,8 @@ class simple_binary_addition_rnn:
         W_hidden_update = np.zeros_like(self.W_hidden)
         W_input_update = np.zeros_like(self.W_input)        
         
-        for position in range(self.binary_dim-1, -1, -1):            
+        # for position in range(self.binary_dim-1, -1, -1):  # binary_dim=8=> position: 7->0
+        for position in range(self.binary_dim):
             
             X = np.array([[a[position], b[position]]])
             
@@ -235,31 +234,34 @@ class simple_binary_addition_rnn:
             
             # sigmoid
             sigmoid = sigmoid_activation()
-            
+          
+            # There is an extera hidden value for first step, therefore 
+            hidden_value_index = -position-1
+            A_hidden = self.hidden_layer.hidden_layer_values[hidden_value_index]         
+            #prev_position = hidden_value_index-1
+            prev_hidden = self.hidden_layer.hidden_layer_values[hidden_value_index-1]  
+          
             # update W_output            
-            A_hidden = self.hidden_layer.hidden_layer_values[position]
-            A_hidden1 = self.hidden_layer.hidden_layer_values[position]
-            A_hidden2 = np.array(self.hidden_layer.hidden_layer_values[position])
+          
             
             A_hidden_transpose = np.array(A_hidden).T
             y_hat = predicated_values[position]
             
-            #prev_position = position + 1
-            prev_hidden = self.hidden_layer.hidden_layer_values[position-1]
+            
             
             tmp_c1 = (y-y_hat)
             
 #            tmp_c2 = np.dot(tmp_c1, y_hat)
 #            tmp_c3 = np.dot(tmp_c2, (1-y_hat))
 #            
-            common_all = self.learning_rate* tmp_c1* sigmoid.backward(y_hat)
+            common_all = tmp_c1* sigmoid.backward(y_hat)
             
             # W_output---------------------
             dy_hat = (y-y_hat)
             dnet_output = np.multiply(dy_hat, y_hat * (1 - y_hat))
             dw_output = np.dot(dnet_output, A_hidden)
             
-            W_output_update = dw_output.T
+            W_output_update += dw_output.T
             
             #W_output_update = common_all*A_hidden
             #W_output_update = np.array(W_output_update).T
@@ -268,19 +270,27 @@ class simple_binary_addition_rnn:
 #            dA_hidden = np.dot(dnet_output, W_output.T) # 1*16
 #            dnet_hidden = np.dot(dA_hidden, (A_hidden*(1-A_hidden)).T)
 #            dw_hidden = np.dot(dnet_hidden, prev_hidden.T)
+
+
+
 #            
             # W_hidden ---------------------
-#            t1 = common_all*self.W_output
-#            test = sigmoid.backward(A_hidden)
-#            t2 = np.dot(t1,test)
+            t1 = common_all*self.W_output
+            test = sigmoid.backward(A_hidden)
+            t2 = np.dot(t1,test)
 #            t3 = np.dot(t2,prev_hidden)
             
-            t3 = self.hidden_layer.backward(self.binary_dim-1, self.W_hidden)
-            
+            t3 = self.hidden_layer.backward(hidden_value_index, self.W_hidden, self.binary_dim)
+            t4 = t2*t3
             #temp2 = sigmoid.backward(A_hidden)
             #temp3 = np.dot(self.W_output, temp2)
             
-            W_hidden_update = t3
+            W_hidden_update += t4
+            
+            
+            
+            
+            
                         
 #            W_input_update = np.dot(t3, X).T  
             t_i1 = dnet_output * self.W_output.T
@@ -288,12 +298,14 @@ class simple_binary_addition_rnn:
             
             t_in3 = t_i1 * t_in2
                         
-            W_input_update = X.T * t_in3
+            W_input_update += X.T * t_in3
 #            W_input_update = dnet_output * self.W_output*A_hidden*(1-A_hidden)*X
             
-            self.W_output += W_output_update * self.learning_rate
-            self.W_hidden += W_hidden_update * self.learning_rate
-            self.W_input += W_input_update * self.learning_rate
+            
+            
+        self.W_output += W_output_update * self.learning_rate
+        self.W_hidden += W_hidden_update * self.learning_rate
+        self.W_input += W_input_update * self.learning_rate
     
     
     def train(self, epochs_count):
