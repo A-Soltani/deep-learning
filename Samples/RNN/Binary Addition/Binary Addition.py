@@ -276,12 +276,12 @@ class simple_binary_addition_rnn:
 #            
             # W_hidden ---------------------
             t1 = common_all*self.W_output
-            test = sigmoid.backward(A_hidden)
-            t2 = np.dot(t1,test)
+            # test = sigmoid.backward(A_hidden)
+            # t2 = np.dot(t1,test)
 #            t3 = np.dot(t2,prev_hidden)
             
             t3 = self.hidden_layer.backward(hidden_value_index, self.W_hidden, self.binary_dim)
-            t4 = t2*t3
+            t4 = t1*t3
             #temp2 = sigmoid.backward(A_hidden)
             #temp3 = np.dot(self.W_output, temp2)
             
@@ -326,7 +326,7 @@ class simple_binary_addition_rnn:
             # desired predictions => d
             d = np.zeros_like(c)  
             
-            d, predicated_values = self.feed_forward(a, b ,c)
+            d, predicated_values = self.feed_forward(a, b, c)
             
             self.back_propagate(a, b, c, predicated_values)
     
