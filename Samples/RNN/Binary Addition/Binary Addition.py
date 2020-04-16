@@ -60,6 +60,22 @@ class input_layer(network_layer):
     
     def forward(self, X, W_input):
         return np.dot(X,W_input)
+    
+    def backward(self, X, hidden_value_index, W_hidden, binary_dim, hidden_layer_values):
+        if hidden_value_index == -binary_dim:
+            s_0 = hidden_layer_values[0]
+            return s_0
+        
+        s_t = hidden_layer_values[hidden_value_index]
+        t1 = s_t*(1-s_t)
+        
+        backward_prev = self.backward(X,hidden_value_index-1, W_hidden, binary_dim, hidden_layer_values)
+        t2 = backward_prev * W_hidden
+        t3 = X + t2
+        return_value =  t1 * t3
+        
+        return return_value
+        
 
 class hiddenLayerUnfold:
     
@@ -104,6 +120,22 @@ class hidden_layer(network_layer):
         t2 = backward_prev * W_hidden
         t3 = s_t_1 + t2
         return_value =  t1 * t3
+        
+        return return_value
+    
+    def backward1(self, hidden_value_index, W_hidden, binary_dim):
+        if hidden_value_index == -binary_dim:
+            s_0 = self.hidden_layer_values[0]
+            return s_0
+        
+        s_t = self.hidden_layer_values[hidden_value_index]
+        # t1 = s_t*(1-s_t)
+        s_t_1 = self.hidden_layer_values[hidden_value_index-1]
+        
+        backward_prev = self.backward(hidden_value_index-1, W_hidden, binary_dim)
+        t2 = backward_prev * W_hidden
+        # t3 = s_t_1 + t2
+        return_value =  s_t_1 + t2
         
         return return_value
         
@@ -249,19 +281,20 @@ class simple_binary_addition_rnn:
             
             
             
-            tmp_c1 = (y-y_hat)
+            dy_hat = (y-y_hat)
             
 #            tmp_c2 = np.dot(tmp_c1, y_hat)
 #            tmp_c3 = np.dot(tmp_c2, (1-y_hat))
 #            
-            common_all = tmp_c1* sigmoid.backward(y_hat)
+            # common_all = dy_hat* sigmoid.backward(y_hat)
             
             # W_output---------------------
             dy_hat = (y-y_hat)
-            dnet_output = np.multiply(dy_hat, y_hat * (1 - y_hat))
-            dw_output = np.dot(dnet_output, A_hidden)
+            # dnet_output = np.multiply(dy_hat, y_hat * (1 - y_hat))
+            dnet_output = dy_hat * sigmoid.backward(y_hat)
+            dw_output = dnet_output* A_hidden.T
             
-            W_output_update += dw_output.T
+            W_output_update += dw_output
             
             #W_output_update = common_all*A_hidden
             #W_output_update = np.array(W_output_update).T
@@ -275,30 +308,39 @@ class simple_binary_addition_rnn:
 
 #            
             # W_hidden ---------------------
-            t1 = common_all*self.W_output
+            # t1 = common_all*self.W_output
+            dA_hidden = dnet_output*self.W_output
             # test = sigmoid.backward(A_hidden)
             # t2 = np.dot(t1,test)
 #            t3 = np.dot(t2,prev_hidden)
-            
+
+            # dnet_hidden = dA_hidden * sigmoid.backward(A_hidden)
+                    
             t3 = self.hidden_layer.backward(hidden_value_index, self.W_hidden, self.binary_dim)
-            t4 = t1*t3
+            t4 = dA_hidden*t3
             #temp2 = sigmoid.backward(A_hidden)
             #temp3 = np.dot(self.W_output, temp2)
             
-            W_hidden_update += t4
+            W_hidden_update += t4        
             
             
+            t_in_3 = self.input_layer.backward(X,hidden_value_index, self.W_hidden, self.binary_dim, self.hidden_layer.hidden_layer_values)
+            t_in_4 = dA_hidden*t_in_3
             
-            
+            W_input_update += t_in_4
             
                         
 #            W_input_update = np.dot(t3, X).T  
-            t_i1 = dnet_output * self.W_output.T
-            t_in2 = A_hidden*(1-A_hidden)
+            # t_i1 = dnet_output * self.W_output.T
+            # t_i1 = dnet_output * self.W_output
+            # t_in2 = A_hidden*(1-A_hidden)
+            # t_in2 = sigmoid.backward(A_hidden)
             
-            t_in3 = t_i1 * t_in2
+            # t_in3 = dA_hidden * t_in2
                         
-            W_input_update += X.T * t_in3
+            # W_input_update += dnet_hidden*X
+            
+            
 #            W_input_update = dnet_output * self.W_output*A_hidden*(1-A_hidden)*X
             
             
