@@ -125,24 +125,7 @@ class hidden_layer(network_layer):
         t3 = s_t_1 + t2
         return_value =  t1 * t3
         
-        return return_value
-    
-    def backward1(self, hidden_value_index, W_hidden, binary_dim):
-        if hidden_value_index == -binary_dim:
-            s_0 = self.hidden_layer_values[0]
-            return s_0
-        
-        s_t = self.hidden_layer_values[hidden_value_index]
-        # t1 = s_t*(1-s_t)
-        s_t_1 = self.hidden_layer_values[hidden_value_index-1]
-        
-        backward_prev = self.backward(hidden_value_index-1, W_hidden, binary_dim)
-        t2 = backward_prev * W_hidden
-        # t3 = s_t_1 + t2
-        return_value =  s_t_1 + t2
-        
-        return return_value
-        
+        return return_value         
             
     
     def save_previous_hidden_layer_value(self, previous_hidden_layer_value):
@@ -243,8 +226,12 @@ class simple_binary_addition_rnn:
             d[location] = np.round(predicated_value[0][0]) 
             
             self.predicated_values[location] = predicated_value
-            
+        
+        
         return d, self.predicated_values
+
+    # def BPTT(self, a, b, c, predicated_values):
+        
     
     def back_propagate(self, a, b, c, predicated_values):
         
@@ -274,16 +261,31 @@ class simple_binary_addition_rnn:
             W_output_update += dw_output     
 
             # W_hidden ---------------------
-            dA_hidden = dnet_output*self.W_output            
+            # dA_hidden = dnet_output*self.W_output            
                     
-            t3 = self.hidden_layer.backward(hidden_value_index, self.W_hidden, self.binary_dim)
-            t4 = dA_hidden*t3            
-            W_hidden_update += t4        
+            # t3 = self.hidden_layer.backward(hidden_value_index, self.W_hidden, self.binary_dim)
+            # t4 = dA_hidden*t3            
+            # W_hidden_update += t4        
             
             # W_input ---------------------
-            t_in_3 = self.input_layer.backward(a, b, hidden_value_index, self.W_hidden, self.binary_dim, self.hidden_layer.hidden_layer_values)
-            t_in_4 = dA_hidden*t_in_3            
-            W_input_update += t_in_4
+            # t_in_3 = self.input_layer.backward(a, b, hidden_value_index, self.W_hidden, self.binary_dim, self.hidden_layer.hidden_layer_values)
+            # t_in_4 = dA_hidden*t_in_3            
+            # W_input_update += t_in_4
+            
+            delta_1 = (y-y_hat)
+            delta_2 = delta_1.dot(self.W_output.T)*(y_hat*(1-y_hat))
+            delta_3 = delta_2.dot(self.W_hidden)
+            
+            # W_hidden ---------------------
+            a_hidden = self.hidden_layer.hidden_layer_values[hidden_value_index]
+            a_hidden_prev = self.hidden_layer.hidden_layer_values[hidden_value_index-1]
+            W_hidden_update += a_hidden.T * delta_2 + (a_hidden_prev.T * delta_3)
+            
+            # W_input ---------------------
+            x = np.array([[a[position], b[position]]])
+            x_prev = np.array([[a[position-1], b[position-1]]])
+            W_input_update += x.T * delta_2 + (x_prev.T * delta_3)
+            
             
             
         self.W_output += W_output_update * self.learning_rate
