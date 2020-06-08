@@ -196,6 +196,12 @@ class binary_addition_rnn:
             hidden_delta = future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + delta_2
 
             # W_output
+            dl_d_y_hat = y_hat-y
+            dy_hat_d_net_output = y_hat*(1-y_hat)
+            delta_net_output = dl_d_y_hat * dy_hat_d_net_output
+            
+            
+            
             # W_output_update += (s_t.T * delta_1)
             
             # W_hidden
