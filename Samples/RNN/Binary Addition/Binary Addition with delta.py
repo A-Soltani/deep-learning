@@ -1,4 +1,4 @@
-import copy, numpy as np
+import numpy as np
 
 # importing "collections" for deque operations 
 from collections import deque
@@ -163,10 +163,8 @@ class binary_addition_rnn:
         # print(prediction_values)
         return prediction_values, hidden_values
             
-    def bptt(self, a, b, c, predicated_values, hidden_values):
-        
-        future_hidden_delta = np.zeros(self.hidden_dimension)
-        future_hidden = np.zeros(self.hidden_dimension)
+    def bptt(self, a, b, c, predicated_values, hidden_values):        
+       
         
         future_delta_net_hidden_explicit = np.zeros(self.hidden_dimension)
         
@@ -186,59 +184,38 @@ class binary_addition_rnn:
             y = np.array([[c[time_step]]]).T
             X = np.array([[a[time_step],b[time_step]]])
             
-            y_hat = predicated_values[time_step]  
-            
-            # loss = y-y_hat
-            delta_1 =  y-y_hat
-            delta_2 = delta_1.dot(self.output_layer.weights.T)*(y_hat*(1-y_hat))
-            delta_3 = delta_2.dot(self.hidden_layer.weights)
-            
-            # hidden_delta = delta_3 + future_hidden_delta.dot(self.hidden_layer.weights.T) * (future_hidden*(1-future_hidden))
-            hidden_delta = future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + delta_2
-
+            y_hat = predicated_values[time_step]   
+           
+           
             # delta_net_output
             dl_d_y_hat = y_hat-y
             dy_hat_d_net_output = y_hat*(1-y_hat)
-            delta_net_output = dl_d_y_hat * dy_hat_d_net_output
+            delta_net_output = dl_d_y_hat * dy_hat_d_net_output           
             
-            # W_output                             
-            W_output_update += np.atleast_2d(s_t).T.dot(delta_net_output)
-            
-            # delta_net_hidden_explicit(t)
-            delta_net_hidden_explicit = delta_net_output.dot(self.output_layer.weights.T) * sigmoid_activation.backward(s_t)
-            
-            delta_net_hidden_implicit = future_delta_net_hidden_explicit.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden)
-            
+            # delta_net_hidden(t)           
+            delta_net_hidden = (delta_net_output.dot(self.output_layer.weights.T) + future_delta_net_hidden_explicit.dot(self.hidden_layer.weights.T))* sigmoid_activation.backward(s_t)
             
             # save delta_net_hidden_explicit as future_delta_net_hidden_explicit for next backpropagation step
-            future_delta_net_hidden_explicit = delta_net_hidden_explicit
-            
-            # W_output_update += (s_t.T * delta_1)
-            
-            # W_hidden
-            # W_hidden_update += (s_t.T * delta_2) + (s_t_prev * delta_4)
-            # W_hidden_update += np.atleast_2d(s_t_prev).T.dot(hidden_delta) 
-            
-            # W_input
-            x = np.array([[a[time_step], b[time_step]]])
-            x_prev = np.array([[a[time_step-1], b[time_step-1]]])
-            # W_input_update += ((x.T * delta_2) + (x_prev.T * delta_4))
-            # W_input_update += x.T.dot(hidden_delta)
-            
+            future_delta_net_hidden_explicit = delta_net_output.dot(self.output_layer.weights.T) * sigmoid_activation.backward(s_t)
+                        
+            # Updating all W_output, W_hidden and  W_output                          
+            W_output_update += np.atleast_2d(s_t).T.dot(delta_net_output)
+            W_hidden_update += np.atleast_2d(s_t_prev).T.dot(delta_net_hidden) 
+            W_input_update  += X.T.dot(delta_net_hidden)            
 
-            # error at output layer
-            outputlayer_error = y - y_hat
-            outputlayer_delta = (outputlayer_error)*sigmoid_activation.backward(y_hat)*(-1)
+            # # error at output layer
+            # outputlayer_error = y - y_hat
+            # outputlayer_delta = (outputlayer_error)*sigmoid_activation.backward(y_hat)*(-1)
         
-            # error at hidden layer * sigmoid_derivative(future_hidden)
-            hidden_delta = (future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + outputlayer_delta.dot(self.output_layer.weights.T)) * sigmoid_activation.backward(s_t)
+            # # error at hidden layer * sigmoid_derivative(future_hidden)
+            # hidden_delta = (future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + outputlayer_delta.dot(self.output_layer.weights.T)) * sigmoid_activation.backward(s_t)
 
-            # update all weights 
-            W_output_update += np.atleast_2d(s_t).T.dot(outputlayer_delta)
-            W_hidden_update += np.atleast_2d(s_t_prev).T.dot(hidden_delta) 
-            W_input_update  += X.T.dot(hidden_delta) 
-            future_hidden_delta = hidden_delta
-            future_hidden = s_t 
+            # # update all weights 
+            # W_output_update += np.atleast_2d(s_t).T.dot(outputlayer_delta)
+            # W_hidden_update += np.atleast_2d(s_t_prev).T.dot(hidden_delta) 
+            # W_input_update  += X.T.dot(hidden_delta) 
+            # future_hidden_delta = hidden_delta
+            # future_hidden = s_t 
         
         return W_output_update, W_hidden_update, W_input_update
     
@@ -251,9 +228,8 @@ class binary_addition_rnn:
         self.input_layer.weights -= W_input_update * self.learning_rate
         
     
-    def train(self, epochs_count):    
-    
-        
+    def train(self, epochs_count):
+           
         data = dataset.get_data(epochs_count, self.binary_dim)        
         
         # This for loop "iterates" multiple times over the training code to optimize our network to the dataset.
@@ -262,15 +238,7 @@ class binary_addition_rnn:
             overallError = 0
             
             # sample a + b = c
-            # for example: 2 + 3 = 5 => (a) 00000010 + (b) 00000011 = (c) 00000101
-            # a, b, c, a_int, b_int, c_int = data.get_sample_addition_problem()
-            
-            # where we'll store our best guess (binary encoded)
-            # desired predictions => d
-            # d = np.zeros_like(c)  
-            
-            # d, predicated_values = self.feed_forward(a, b, c)
-            
+            # for example: 2 + 3 = 5 => (a) 00000010 + (b) 00000011 = (c) 00000101            
             sample = data[epoch]
             a = sample[0]
             b = sample[1]
@@ -282,9 +250,7 @@ class binary_addition_rnn:
             
             # Print out the Progress of the RNN
             if (epoch % 1000 == 0):
-                 utility.print_result(a, b, c, predicated_values, epoch)
-           
-            
+                 utility.print_result(a, b, c, predicated_values, epoch)           
             
 
 if __name__ == '__main__':
@@ -292,15 +258,5 @@ if __name__ == '__main__':
     
     rnn = binary_addition_rnn(8, 16, 0.1)
     rnn.train(10000)
-    # rnn.train((1000)  
-        
-
-
-
-
-
-
-
-
 
 
