@@ -168,6 +168,8 @@ class binary_addition_rnn:
         future_hidden_delta = np.zeros(self.hidden_dimension)
         future_hidden = np.zeros(self.hidden_dimension)
         
+        future_delta_net_hidden_explicit = np.zeros(self.hidden_dimension)
+        
         # Initialize Updated Weights Values
         W_output_update = np.zeros_like(self.output_layer.weights)
         W_hidden_update = np.zeros_like(self.hidden_layer.weights)
@@ -187,7 +189,6 @@ class binary_addition_rnn:
             y_hat = predicated_values[time_step]  
             
             # loss = y-y_hat
-            # delta
             delta_1 =  y-y_hat
             delta_2 = delta_1.dot(self.output_layer.weights.T)*(y_hat*(1-y_hat))
             delta_3 = delta_2.dot(self.hidden_layer.weights)
@@ -195,12 +196,22 @@ class binary_addition_rnn:
             # hidden_delta = delta_3 + future_hidden_delta.dot(self.hidden_layer.weights.T) * (future_hidden*(1-future_hidden))
             hidden_delta = future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + delta_2
 
-            # W_output
+            # delta_net_output
             dl_d_y_hat = y_hat-y
             dy_hat_d_net_output = y_hat*(1-y_hat)
             delta_net_output = dl_d_y_hat * dy_hat_d_net_output
             
+            # W_output                             
+            W_output_update += np.atleast_2d(s_t).T.dot(delta_net_output)
             
+            # delta_net_hidden_explicit(t)
+            delta_net_hidden_explicit = delta_net_output.dot(self.output_layer.weights.T) * sigmoid_activation.backward(s_t)
+            
+            delta_net_hidden_implicit = future_delta_net_hidden_explicit.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden)
+            
+            
+            # save delta_net_hidden_explicit as future_delta_net_hidden_explicit for next backpropagation step
+            future_delta_net_hidden_explicit = delta_net_hidden_explicit
             
             # W_output_update += (s_t.T * delta_1)
             
