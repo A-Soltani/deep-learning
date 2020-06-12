@@ -18,12 +18,12 @@ class utility:
         print("epoch:", epoch)
         print("a:   " + str(a))
         print("b:   " + str(b))        
+        print("----------------------")
         print("c:   " + str(c))
         print("Pred:" + str(d))
-        
-        print("----------------------")
+        print("============================")
 
-class dataset:
+class dataset_utility:
     @staticmethod
     def get_data(samples_count, binary_dim):
         
@@ -32,13 +32,12 @@ class dataset:
         samples = list()
         for i in range(samples_count):
             
+            # sample a + b = c
+            # for example: 2 + 3 = 5 => (a) 00000010 + (b) 00000011 = (c) 00000101   
             a = np.random.randint(largest_number/2) 
-
             b = np.random.randint(largest_number/2)
-
             # true answer => summation
-            c = a + b
-            
+            c = a + b            
                     
             int_array = np.array([[a], [b], [c]], dtype=np.uint8)
             
@@ -47,6 +46,13 @@ class dataset:
             samples.append(binary_array)
             
         return samples
+    
+    @staticmethod
+    def get_inputs_and_target(sample):
+         a = sample[0]
+         b = sample[1]
+         c = sample[2]
+         return a, b, c        
 
 class random_generator:
     
@@ -83,7 +89,7 @@ class sigmoid_activation():
     
     @staticmethod
     def backward(output):
-        return output*(1 - output)      
+        return output*(1 - output)  
 
 
 class network_layer(ABC):
@@ -115,6 +121,48 @@ class output_layer(network_layer):
     def forward(self, activation_hidden): 
         net_output = multiply_gate.forward(activation_hidden, self.weights)    
         return sigmoid_activation.forward(net_output)
+
+class back_propagation:
+    
+    @staticmethod
+    def bptt(a, b, c, predicated_values, hidden_values, hidden_dimension, output_layer_weights, hidden_layer_weights, input_layer_weights, binary_dim):  
+              
+        future_delta_net_hidden_explicit = np.zeros(hidden_dimension)
+        
+        # Initialize Updated Weights Values
+        dl_dw_output = np.zeros_like(output_layer_weights)
+        dl_dw_hidden = np.zeros_like(hidden_layer_weights)
+        dl_dw_input = np.zeros_like(input_layer_weights)
+        
+        for time_step in range(binary_dim):
+            
+            # s_t = h(t)
+            # s_t_prev = h(t-1)
+            time_step_hidden_value_index = binary_dim - time_step
+            s_t = hidden_values[time_step_hidden_value_index]
+            s_t_prev = hidden_values[time_step_hidden_value_index -1]            
+            
+            X = np.array([[a[time_step],b[time_step]]])            
+            y = np.array([[c[time_step]]]).T
+            y_hat = predicated_values[time_step]           
+           
+            # delta_net_output
+            dl_d_y_hat = y_hat-y
+            dy_hat_d_net_output = y_hat*(1-y_hat)
+            delta_net_output = dl_d_y_hat * dy_hat_d_net_output          
+            
+            # delta_net_hidden(t)           
+            delta_net_hidden = (delta_net_output.dot(output_layer_weights.T) + future_delta_net_hidden_explicit.dot(hidden_layer_weights.T))* sigmoid_activation.backward(s_t)
+            
+            # save delta_net_hidden_explicit as future_delta_net_hidden_explicit for next backpropagation step
+            future_delta_net_hidden_explicit = delta_net_output.dot(output_layer_weights.T) * sigmoid_activation.backward(s_t)
+                        
+            # Updating W_output, W_hidden and  W_output for every bit
+            dl_dw_output += np.atleast_2d(s_t).T.dot(delta_net_output)
+            dl_dw_hidden += np.atleast_2d(s_t_prev).T.dot(delta_net_hidden) 
+            dl_dw_input  += X.T.dot(delta_net_hidden)            
+        
+        return dl_dw_output, dl_dw_hidden, dl_dw_input
 
 class binary_addition_rnn:
     
@@ -160,103 +208,77 @@ class binary_addition_rnn:
             prediction_value = self.output_layer.forward(activation_hidden)
             prediction_values.appendleft(prediction_value)
             
-        # print(prediction_values)
-        return prediction_values, hidden_values
-            
-    def bptt(self, a, b, c, predicated_values, hidden_values):        
-       
-        
-        future_delta_net_hidden_explicit = np.zeros(self.hidden_dimension)
-        
-        # Initialize Updated Weights Values
-        W_output_update = np.zeros_like(self.output_layer.weights)
-        W_hidden_update = np.zeros_like(self.hidden_layer.weights)
-        W_input_update = np.zeros_like(self.input_layer.weights)
-        
-        for time_step in range(self.binary_dim):
-            
-            # s_t = h(t)
-            time_step_hidden_value_index = self.binary_dim - time_step
-            s_t = hidden_values[time_step_hidden_value_index]
-            s_t_prev = hidden_values[time_step_hidden_value_index -1]
-            
-            # target value
-            y = np.array([[c[time_step]]]).T
-            X = np.array([[a[time_step],b[time_step]]])
-            
-            y_hat = predicated_values[time_step]   
-           
-           
-            # delta_net_output
-            dl_d_y_hat = y_hat-y
-            dy_hat_d_net_output = y_hat*(1-y_hat)
-            delta_net_output = dl_d_y_hat * dy_hat_d_net_output           
-            
-            # delta_net_hidden(t)           
-            delta_net_hidden = (delta_net_output.dot(self.output_layer.weights.T) + future_delta_net_hidden_explicit.dot(self.hidden_layer.weights.T))* sigmoid_activation.backward(s_t)
-            
-            # save delta_net_hidden_explicit as future_delta_net_hidden_explicit for next backpropagation step
-            future_delta_net_hidden_explicit = delta_net_output.dot(self.output_layer.weights.T) * sigmoid_activation.backward(s_t)
-                        
-            # Updating all W_output, W_hidden and  W_output                          
-            W_output_update += np.atleast_2d(s_t).T.dot(delta_net_output)
-            W_hidden_update += np.atleast_2d(s_t_prev).T.dot(delta_net_hidden) 
-            W_input_update  += X.T.dot(delta_net_hidden)            
-
-            # # error at output layer
-            # outputlayer_error = y - y_hat
-            # outputlayer_delta = (outputlayer_error)*sigmoid_activation.backward(y_hat)*(-1)
-        
-            # # error at hidden layer * sigmoid_derivative(future_hidden)
-            # hidden_delta = (future_hidden_delta.dot(self.hidden_layer.weights.T) * sigmoid_activation.backward(future_hidden) + outputlayer_delta.dot(self.output_layer.weights.T)) * sigmoid_activation.backward(s_t)
-
-            # # update all weights 
-            # W_output_update += np.atleast_2d(s_t).T.dot(outputlayer_delta)
-            # W_hidden_update += np.atleast_2d(s_t_prev).T.dot(hidden_delta) 
-            # W_input_update  += X.T.dot(hidden_delta) 
-            # future_hidden_delta = hidden_delta
-            # future_hidden = s_t 
-        
-        return W_output_update, W_hidden_update, W_input_update
+        return prediction_values, hidden_values         
+    
     
     def back_propagate(self, a, b, c, predicated_values, hidden_values):
         
-        W_output_update, W_hidden_update, W_input_update = self.bptt(a, b, c, predicated_values, hidden_values)
+        # BPTT
+        dl_dw_output, dl_dw_hidden, dl_dw_input = back_propagation.bptt(a, b, c, predicated_values, hidden_values, hidden_dimension, self.output_layer.weights, self.hidden_layer.weights, self.input_layer.weights, self.binary_dim)
         
-        self.output_layer.weights -= W_output_update * self.learning_rate
-        self.hidden_layer.weights -= W_hidden_update * self.learning_rate
-        self.input_layer.weights -= W_input_update * self.learning_rate
-        
+        self.output_layer.weights -= dl_dw_output * self.learning_rate
+        self.hidden_layer.weights -= dl_dw_hidden * self.learning_rate
+        self.input_layer.weights -= dl_dw_input * self.learning_rate        
     
-    def train(self, epochs_count):
+    def train(self, dataset_train):
            
-        data = dataset.get_data(epochs_count, self.binary_dim)        
+        epochs_count = len(dataset_train)
         
         # This for loop "iterates" multiple times over the training code to optimize our network to the dataset.
         for epoch in range(epochs_count):
             
-            overallError = 0
+            overallError = 0            
+                             
+            a, b, c = dataset_utility.get_inputs_and_target(dataset_train[epoch])           
             
-            # sample a + b = c
-            # for example: 2 + 3 = 5 => (a) 00000010 + (b) 00000011 = (c) 00000101            
-            sample = data[epoch]
-            a = sample[0]
-            b = sample[1]
-            c = sample[2]
-            
+            # feed forward propagation
             predicated_values, hidden_values = self.feed_forward(a, b, c)
             
+            # back propagation
             self.back_propagate(a, b, c, predicated_values, hidden_values)
             
             # Print out the Progress of the RNN
             if (epoch % 1000 == 0):
-                 utility.print_result(a, b, c, predicated_values, epoch)           
+                 utility.print_result(a, b, c, predicated_values, epoch)
+        
+    def test(self, dataset_test):
+
+        epochs_count = len(dataset_test)
+        
+        # This for loop "iterates" multiple times over the training code to optimize our network to the dataset.
+        for epoch in range(epochs_count):
+                        
+            a, b, c = dataset_utility.get_inputs_and_target(dataset_train[epoch])
             
+            # feed forward propagation
+            predicated_values, hidden_values = self.feed_forward(a, b, c)
+            
+            # Print out the Progress of the RNN
+            if (epoch % 1000 == 0):
+                 utility.print_result(a, b, c, predicated_values, epoch)            
 
 if __name__ == '__main__':
-    data = dataset.get_data(10000, 8)
     
-    rnn = binary_addition_rnn(8, 16, 0.1)
-    rnn.train(10000)
+    binary_dim = 8
+    hidden_dimension = 16
+    learning_rate = 0.1
+    
+    # datasets config
+    dataset_size = 10000
+    train_dataset_size = 7000    
+    data = dataset_utility.get_data(dataset_size, binary_dim)
+    dataset_train = data[:train_dataset_size]
+    dataset_test = data[train_dataset_size:]
+    
+    # initializing RNN
+    rnn = binary_addition_rnn(binary_dim, hidden_dimension, learning_rate)
+    
+    # train
+    print("-------------- train --------------")
+    rnn.train(dataset_train)
+    
+    # test
+    print("-------------- test --------------")    
+    rnn.train(dataset_test)
 
 
